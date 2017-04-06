@@ -1,49 +1,118 @@
-import sun.net.URLCanonicalizer;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.MalformedURLException;
+import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-/**
- * Created by ACER on 2017/4/6.
- */
 public class GetWebContent {
-    public static void main(String [] args){
-        String urlString = "http://www.baidu.com";
-        String result = getWeb(urlString);
-        System.out.println(result);
+
+    // 地址
+    private static final String URL = "http://www.tooopen.com/view/1439719.html";
+    // 获取img标签正则
+    private static final String IMG_URL = "<img.*src=(.*?)[^>]*?>";
+    // 获取src路径的正则
+    private static final String IMG_SRC_HTTP = "[a-zA-z]+://[^\\s]*\\.(jpg|png|gif|jpeg)";
+    private static final String IMG_SRC = "//[^\\s]*\\.(jpg|png|gif|jpeg)";
+
+    public static void main(String[] args) {
+        try {
+            GetWebContent cm=new GetWebContent();
+            //获得html文本内容
+            String HTML = cm.getHtml(URL);
+            //获取图片标签
+            List<String> imgUrl = cm.getImageUrl(HTML);
+            //获取图片src地址
+            List<String> imgSrc = cm.getImageSrc(imgUrl);
+            //下载图片
+            cm.Download(imgSrc);
+
+        }catch (Exception e){
+            System.out.println("发生错误");
+        }
+
     }
 
-    private static String getWeb(String urlString) {
-        URL url;
-        BufferedReader in = null;
-        String result ="";
+    //获取HTML内容
+    private String getHtml(String url)throws Exception{
+        URL url1=new URL(url);
+        URLConnection connection=url1.openConnection();
+        InputStream in=connection.getInputStream();
+        InputStreamReader isr=new InputStreamReader(in);
+        BufferedReader br=new BufferedReader(isr);
 
-        try {
-            url = new URL(urlString);
-            URLConnection urlConnection = url.openConnection();
-            urlConnection.connect();
-            in = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
-            String line;
-            while ((line = in.readLine())!=null) {
-                result += line + "\n";
-            }
-        } catch (MalformedURLException e) {
-            System.err.println("MalformedURLException");
-            e.printStackTrace();
-        } catch (IOException e) {
-            System.err.println("IOException");
-            e.printStackTrace();
-        }finally {
-            try {
-                in.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+        String line;
+        StringBuffer sb=new StringBuffer();
+        while((line=br.readLine())!=null){
+            sb.append(line,0,line.length());
+            sb.append('\n');
+        }
+        br.close();
+        isr.close();
+        in.close();
+        return sb.toString();
+    }
+
+    //获取ImageUrl地址
+    private List<String> getImageUrl(String html){
+        Matcher matcher=Pattern.compile(IMG_URL).matcher(html);
+        List<String>listimgurl=new ArrayList<String>();
+        while (matcher.find()){
+            listimgurl.add(matcher.group());
+        }
+        return listimgurl;
+    }
+
+    //获取ImageSrc地址
+    private List<String> getImageSrc(List<String> listimageurl){
+        List<String> listImageSrc=new ArrayList<String>();
+        for (String image:listimageurl){
+            if (!image.contains("http:")) {
+                Matcher matcher = Pattern.compile(IMG_SRC).matcher(image);
+                while (matcher.find()){
+                    listImageSrc.add("http:"+matcher.group().substring(0, matcher.group().length()));
+                }
+            }else {
+                Matcher matcher = Pattern.compile(IMG_SRC_HTTP).matcher(image);
+                while (matcher.find()) {
+                    listImageSrc.add(matcher.group().substring(0, matcher.group().length()));
+                }
             }
         }
-        return result;
+        return listImageSrc;
+    }
+
+    //下载图片
+    private void Download(List<String> listImgSrc) {
+        try {
+            //开始时间
+            Date begindate = new Date();
+            for (String url : listImgSrc) {
+                //开始时间
+                Date begindate2 = new Date();
+                String imageName = url.substring(url.lastIndexOf("/") + 1, url.length());
+                URL uri = new URL(url);
+                InputStream in = uri.openStream();
+                FileOutputStream fo = new FileOutputStream(new File("D:/reptile/"+imageName));
+                byte[] buf = new byte[1024];
+                int length = 0;
+                System.out.println("开始下载:" + url);
+                while ((length = in.read(buf, 0, buf.length)) != -1) {
+                    fo.write(buf, 0, length);
+                }
+                in.close();
+                fo.close();
+                System.out.println(imageName + "下载完成");
+                //结束时间
+                Date overdate2 = new Date();
+                double time = overdate2.getTime() - begindate2.getTime();
+                System.out.println("耗时：" + time / 1000 + "s");
+            }
+            Date overdate = new Date();
+            double time = overdate.getTime() - begindate.getTime();
+            System.out.println("总耗时：" + time / 1000 + "s");
+        } catch (Exception e) {
+            System.out.println("下载失败");
+        }
     }
 }
